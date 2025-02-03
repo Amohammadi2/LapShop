@@ -1,0 +1,6 @@
+- clear screen for linux not necessary
+- password hashing for users
+- filtering process
+- Adding classes to make the code more object oriented
+- we can save users to csv
+- password shouldn't be seen when logging in or on registration
