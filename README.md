@@ -26,3 +26,12 @@ C:\example\path\to\LapShop> python .\main.py
 ```
 
 when you first run the app, it will scrape data from zoomit.ir
+
+## Statistical Analysis And Visualization
+
+Run the following code:
+```ps
+C:\example\path\to\LapShop> python .\plotter.py
+```
+
+Then check the reports folder in the root of the project `Lapshop\reports`
