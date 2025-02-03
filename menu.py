@@ -108,92 +108,86 @@ def parse_condition(condition):
     except ValueError:
       return None
 
-def apply_filter(df, filter_str):
+def apply_condition(df, field, operator, value):
+    # Convert value to the appropriate type (e.g., int, float, or str)
     try:
-        if not filter_str:
-            return df
-        filter_str = filter_str.strip()
-        if "AND" in filter_str:
-            conditions = filter_str.split(" AND ")
-            parsed_conditions = [parse_condition(c) for c in conditions]
-            if any(c is None for c in parsed_conditions):
-                return None
-            def create_filter_func(field, operator, value):
-                if operator == "==":return df[field] == value
-                elif operator == "<":
-                    return df[field] < value
-                elif operator == ">":
-                    return df[field] > value
-                elif operator == ">=":
-                    return df[field] >= value
-                elif operator == "<=":
-                    return df[field] <= value
-                elif operator == "!=":
-                    return df[field] != value
-                elif operator == "in":
-                    return df[field].astype(str).str.contains(value)
-                else:
-                    return pd.Series([False] * len(df)) # Return False Series for invalid ops
+        value = int(value)
+    except ValueError:
+        try:
+            value = float(value)
+        except ValueError:
+            pass  # Keep as string
+    
+    # Apply the filter based on the operator
+    if operator == "==":
+        return df[field] == value
+    elif operator == "!=":
+        return df[field] != value
+    elif operator == "<":
+        return df[field] < value
+    elif operator == "<=":
+        return df[field] <= value
+    elif operator == ">":
+        return df[field] > value
+    elif operator == ">=":
+        return df[field] >= value
+    else:
+        raise ValueError(f"Unsupported operator: {operator}")
 
-            try:
-                filter_series = [create_filter_func(field, operator, value) for field, operator, value in parsed_conditions]
-                combined_filter = reduce(lambda x, y: x & y, filter_series)
-                return df[combined_filter]
-            except:
-                return None
-
-        elif "OR" in filter_str:
-            conditions = filter_str.split(" OR ")
-            parsed_conditions = [parse_condition(c) for c in conditions]
-            if any(c is None for c in parsed_conditions):
-                return None
-            def create_filter_func(field, operator, value):
-                if operator == "==":
-                    return df[field] == value
-                elif operator == "<":
-                    return df[field] < value
-                elif operator == ">":
-                    return df[field] > value
-                elif operator == ">=":
-                    return df[field] >= value
-                elif operator == "<=":
-                    return df[field] <= value
-                elif operator == "!=":
-                    return df[field] != value
-                elif operator == "in":
-                    return df[field].astype(str).str.contains(value)
-                else:
-                    return pd.Series([False] * len(df))  # Return False Series for invalid ops
-
-            try:
-                filter_series = [create_filter_func(field, operator, value) for field, operator, value in parsed_conditions]
-                combined_filter = reduce(lambda x, y: x | y, filter_series)
-                return df[combined_filter]
-            except:
-                return None
+def apply_filters(df, filter_str):
+    # Split the filter_str into tokens (conditions and operators)
+    tokens = filter_str.split()
+    
+    # Stack to keep track of conditions and operators
+    stack = []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in ["AND", "OR"]:
+            # Push the operator onto the stack
+            stack.append(tokens[i])
+            i += 1
         else:
-            parsed_condition = parse_condition(filter_str)
-            if not parsed_condition:
-                return None
-            field, operator, value = parsed_condition
-            if operator == "==":
-                return df[df[field] == value]
-            elif operator == "<":
-                return df[df[field] < value]
-            elif operator == ">":
-                return df[df[field] > value]
-            elif operator == ">=":
-                return df[df[field] >= value]
-            elif operator == "<=":
-                return df[df[field] <= value]
-            elif operator == "!=":
-                return df[df[field] != value]
-            elif operator == "in":
-                return df[df[field].astype(str).str.contains(value)]
-            else:
-                return None
-    except:
-        return None
+            # Parse the condition
+            condition = ' '.join(tokens[i:i+3])  # A condition is 3 tokens (e.g., "price < 700000")
+            field, operator, value = parse_condition(condition)
+            mask = apply_condition(df, field, operator, value)
+            stack.append(mask)
+            i += 3
+    
+    # Evaluate the stack with proper precedence (AND has higher precedence than OR)
+    # First, evaluate all AND operations
+    and_evaluated_stack = []
+    j = 0
+    while j < len(stack):
+        if isinstance(stack[j], pd.Series):  # It's a mask
+            and_evaluated_stack.append(stack[j])
+            j += 1
+        elif stack[j] == "AND":
+            # Pop the last mask and apply AND with the next mask
+            left_mask = and_evaluated_stack.pop()
+            right_mask = stack[j + 1]
+            and_evaluated_stack.append(left_mask & right_mask)
+            j += 2
+        elif stack[j] == "OR":
+            # Push OR operator to the stack for later evaluation
+            and_evaluated_stack.append(stack[j])
+            j += 1
+    
+    # Now evaluate all OR operations
+    final_mask = and_evaluated_stack[0]
+    j = 1
+    while j < len(and_evaluated_stack):
+        if and_evaluated_stack[j] == "OR":
+            # Apply OR with the next mask
+            right_mask = and_evaluated_stack[j + 1]
+            final_mask = final_mask | right_mask
+            j += 2
+        else:
+            j += 1
+    
+    # Apply the final mask to the DataFrame
+    filtered_df = df[final_mask]
+    return filtered_df
 
 def add_to_cart(cart: list[int]):
     """افزودن کالا به سبد خرید."""
@@ -319,8 +313,9 @@ def show_user_menu(username):
         elif choice == '2':
             while True:
               filter_str = input("Enter the filter condition: ")
-              filtered_products = apply_filter(products_df, filter_str)
-              if filtered_products is None:
+              try:
+                filtered_products = apply_filters(products_df, filter_str)
+              except:
                 print("Incorrect filter condition")
               else:
                   if filtered_products.empty:
