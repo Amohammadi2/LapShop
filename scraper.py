@@ -16,25 +16,26 @@ chrome_options.add_argument("--headless")  # Run in headless mode (no GUI)
 service = Service(ChromeDriverManager().install())
 
 def scrape_laptop_data(brand):
+
     driver = webdriver.Chrome(service=service, options=chrome_options)
+
     # URL to scrape
     url = f"https://www.zoomit.ir/product/list/laptop/{brand}/"
     # Open the URL
-    driver.get(url)
     print('[LOG]: Loading the web page')
-    time.sleep(3)  # Wait for the page to load
+    driver.get(url)
     # List to store scraped data
     scraped_data = []
     # Click the "Load More" button five times
-    for i in range(1):
+    for i in range(4):
         print(f'[LOG]: Initiating a lazy load {i+1}/4')
         try:
             # Locate the "Load More" button
             load_more_button = driver.find_element(By.CSS_SELECTOR, 'button[data-testid="load-more"]')
             # Click the button
             load_more_button.click()
-            # Wait for 3 seconds to allow new content to load
-            time.sleep(3)
+            # Wait for 5 seconds to allow new content to load
+            time.sleep(5)
         except Exception as e:
             print(f"Error clicking 'Load More' button: {e}")
             break
@@ -94,9 +95,13 @@ def scrape_laptop_data(brand):
     return scraped_data
 
 
-if __name__ == '__main__':
-    # brands = ['asus', 'hp', 'msi', 'acer', 'lenovo']
-    brands = ['asus', 'hp']
+def start_scraping():
+
+    # Configure Chrome options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Run in headless mode (no GUI)
+
+    brands = ['asus', 'hp', 'msi', 'acer', 'lenovo']
     data = []
     for brand in brands:
         print(f'[LOG]: Scraping laptop data, {brand=}')
